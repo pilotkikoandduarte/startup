@@ -191,9 +191,9 @@ if page == "📊 Relatório de Hoje":
     st.markdown("#### Evolução da Prontidão")
     if READ_COL in dp.columns:
         fig = go.Figure()
-        fig.add_hrect(y0=67, y1=105, fillcolor=f"{G}14", line_width=0,
+        fig.add_hrect(y0=67, y1=105, fillcolor="rgba(0,200,83,0.08)", line_width=0,
                       annotation_text="Zona óptima", annotation_position="top right")
-        fig.add_hrect(y0=0, y1=33, fillcolor=f"{R}14", line_width=0,
+        fig.add_hrect(y0=0, y1=33, fillcolor="rgba(255,23,68,0.08)", line_width=0,
                       annotation_text="Zona crítica", annotation_position="bottom right")
         fig.add_trace(go.Scatter(x=dp['Dia'], y=dp[READ_COL], name="Readiness",
                                  line=dict(color=BL, width=2.5),
@@ -339,8 +339,8 @@ elif page == "🧬 Recuperação & HRV":
         if 'Recovery_Score' in dp.columns:
             clrs = [_rc(v) for v in dp['Recovery_Score']]
             fig = go.Figure(go.Bar(x=dp['Dia'], y=dp['Recovery_Score'], marker_color=clrs))
-            fig.add_hrect(y0=67, y1=105, fillcolor=f"{G}12", line_width=0)
-            fig.add_hrect(y0=0, y1=33, fillcolor=f"{R}12", line_width=0)
+            fig.add_hrect(y0=67, y1=105, fillcolor="rgba(0,200,83,0.07)", line_width=0)
+            fig.add_hrect(y0=0, y1=33, fillcolor="rgba(255,23,68,0.07)", line_width=0)
             st.plotly_chart(_style(fig, 270), use_container_width=True, config={"displayModeBar": False})
 
     with c4:
@@ -387,11 +387,11 @@ elif page == "🚨 Gestão de Risco":
         st.markdown("#### ACWR com Zonas de Risco")
         if 'ACWR' in dp.columns:
             fig = go.Figure()
-            fig.add_hrect(y0=0.8, y1=1.3, fillcolor=f"{G}18", line_width=0,
+            fig.add_hrect(y0=0.8, y1=1.3, fillcolor="rgba(0,200,83,0.10)", line_width=0,
                           annotation_text="Zona óptima", annotation_position="top left")
-            fig.add_hrect(y0=1.3, y1=1.5, fillcolor=f"{Y}18", line_width=0,
+            fig.add_hrect(y0=1.3, y1=1.5, fillcolor="rgba(255,214,0,0.10)", line_width=0,
                           annotation_text="Atenção", annotation_position="top right")
-            fig.add_hrect(y0=1.5, y1=3.0, fillcolor=f"{R}18", line_width=0,
+            fig.add_hrect(y0=1.5, y1=3.0, fillcolor="rgba(255,23,68,0.10)", line_width=0,
                           annotation_text="Perigo", annotation_position="top right")
             clrs = [_c(v) for v in dp['ACWR']]
             fig.add_trace(go.Scatter(x=dp['Dia'], y=dp['ACWR'], mode='lines+markers',
@@ -416,9 +416,9 @@ elif page == "🚨 Gestão de Risco":
             value=injury,
             title={"text": "Risco de Lesão", "font": {"size": 13, "color": "#8b9ab1"}},
             gauge={"axis": {"range": [0, 100]}, "bar": {"color": _ic(injury)},
-                   "steps": [{"range": [0, 35], "color": f"{G}22"},
-                              {"range": [35, 60], "color": f"{Y}22"},
-                              {"range": [60, 100], "color": f"{R}22"}],
+                   "steps": [{"range": [0, 35], "color": "rgba(0,200,83,0.13)"},
+                              {"range": [35, 60], "color": "rgba(255,214,0,0.13)"},
+                              {"range": [60, 100], "color": "rgba(255,23,68,0.13)"}],
                    "threshold": {"line": {"color": R, "width": 3},
                                  "thickness": 0.75, "value": 60}}))
         fig.update_layout(paper_bgcolor=BG, font_color="#c9d1d9",
