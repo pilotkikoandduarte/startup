@@ -48,4 +48,11 @@ The project is a sports performance AI platform for football athletes. It has tw
 
 ## Git workflow
 
-After every meaningful change: commit with a clean imperative-mood message and push to `origin main` (GitHub: `pilotkikoandduarte/startup`).
+**Commit and push after every meaningful unit of work** — never leave a session with uncommitted changes. The goal is that the GitHub history always reflects the latest working state so any version can be recovered.
+
+Rules:
+- Commit at logical checkpoints (feature added, bug fixed, metric updated), not just at the end of a session
+- Always push immediately after committing: `git push origin main`
+- Write commit messages in imperative mood, subject line under 72 characters (e.g. `Add Recovery Score to dashboard level 1`, not `added stuff`)
+- Stage specific files rather than `git add .` to avoid accidentally committing unrelated or generated files
+- Remote: `https://github.com/pilotkikoandduarte/startup` (`origin main`)
