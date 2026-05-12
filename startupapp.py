@@ -5,521 +5,471 @@ import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
 
-st.set_page_config(page_title="BME Performance AI", page_icon="🏆",
+st.set_page_config(page_title="BME · Performance AI", page_icon="⚡",
                    layout="wide", initial_sidebar_state="expanded")
 
+BG = "#0a0a0a"; BD = "#1e1e1e"
+T2 = "#888";    T3 = "#444"
+G  = "#00e676"; A  = "#ffb300"; R  = "#ff3d57"
+BL = "#3d8bff"; PR = "#bf5af2"
+FILL = {G:"rgba(0,230,118,.06)", A:"rgba(255,179,0,.06)",
+        R:"rgba(255,61,87,.06)",  BL:"rgba(61,139,255,.06)", PR:"rgba(191,90,242,.06)"}
+
+cg = lambda v: G if v >= 67 else A if v >= 33 else R
+ca = lambda v: R if v > 1.5 else A if v > 1.3 else G if v >= 0.8 else A
+ci = lambda v: R if v >= 60 else A if v >= 35 else G
+
 st.markdown("""<style>
-.kpi-card{background:#161b27;border-radius:14px;padding:18px 20px;border-left:4px solid #2979ff;margin:6px 0}
-.kpi-label{color:#8b9ab1;font-size:.78rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
-.kpi-value{color:#e8edf5;font-size:1.9rem;font-weight:800;line-height:1.15}
-.kpi-sub{color:#8b9ab1;font-size:.75rem;margin-top:3px}
-.coach-card{background:#0d1117;border:1px solid #21262d;border-radius:14px;padding:18px 22px;margin:14px 0}
-.coach-title{color:#2979ff;font-size:.8rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px}
-.coach-text{color:#c9d1d9;font-size:.93rem;line-height:1.65}
-div[data-testid="stSidebar"]{background:#0a0e1a}
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+html,body,[data-testid="stApp"]{background:#0a0a0a!important;font-family:'Inter',sans-serif!important;color:#fff!important}
+[data-testid="stSidebar"]{background:#050505!important;border-right:1px solid #181818!important}
+[data-testid="stSidebar"] *{font-family:'Inter',sans-serif!important}
+.block-container{padding:1.5rem 2rem 3rem!important;max-width:1380px!important}
+#MainMenu,footer,header,.stDeployButton{visibility:hidden!important;height:0!important;display:none!important}
+.mc{background:#111;border:1px solid #1e1e1e;border-radius:14px;padding:18px 20px;position:relative;overflow:hidden;margin-bottom:8px}
+.mc::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.ml{color:#3a3a3a;font-size:9.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-bottom:5px}
+.mv{font-size:2.15rem;font-weight:800;line-height:1}
+.ms{color:#3a3a3a;font-size:11px;margin-top:4px}
+.ic{background:#0d0d0d;border:1px solid #1c1c1c;border-radius:0 12px 12px 0;padding:14px 18px;font-size:12.5px;line-height:1.75;color:#666;margin:12px 0}
+.ic strong{color:#ccc}
+.ict{font-size:9px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#2e2e2e;margin-bottom:7px}
+.sh{font-size:9.5px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:#2e2e2e;margin:22px 0 10px}
+.tag{display:inline-block;padding:3px 10px;border-radius:20px;font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+div[data-baseweb="select"]>div{background:#111!important;border-color:#222!important}
+.stSlider>div>div>div{background:#1e1e1e!important}
 </style>""", unsafe_allow_html=True)
 
-G, Y, R = "#00c853", "#ffd600", "#ff1744"
-BL, OR, PR = "#2979ff", "#ff6d00", "#9c27b0"
-BG = "#0d1117"
-GR = "#21262d"
-
-
-def _c(acwr):
-    return R if acwr > 1.5 else OR if acwr > 1.3 else G if acwr >= 0.8 else Y
-
-
-def _rc(v):
-    return G if v >= 67 else Y if v >= 33 else R
-
-
-def _ic(v):
-    return R if v >= 60 else OR if v >= 35 else G
-
-
-def _style(fig, h=300):
-    fig.update_layout(paper_bgcolor=BG, plot_bgcolor=BG, font_color="#c9d1d9",
-                      margin=dict(l=6, r=6, t=36, b=6), height=h,
-                      xaxis=dict(gridcolor=GR, zeroline=False, showline=False),
-                      yaxis=dict(gridcolor=GR, zeroline=False, showline=False),
-                      legend=dict(bgcolor="rgba(0,0,0,0)", font_size=11))
-    return fig
-
-
-def kpi(label, value, sub="", color=BL):
-    st.markdown(f'<div class="kpi-card" style="border-color:{color}">'
-                f'<div class="kpi-label">{label}</div>'
-                f'<div class="kpi-value" style="color:{color}">{value}</div>'
-                f'<div class="kpi-sub">{sub}</div></div>', unsafe_allow_html=True)
-
-
-def coach(title, text):
-    st.markdown(f'<div class="coach-card"><div class="coach-title">{title}</div>'
-                f'<div class="coach-text">{text}</div></div>', unsafe_allow_html=True)
-
-
-def gauge(val, max_val, title, color, suffix=""):
-    fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=val,
-        number={"suffix": suffix, "font": {"size": 26, "color": color}},
-        title={"text": title, "font": {"size": 12, "color": "#8b9ab1"}},
-        gauge={"axis": {"range": [0, max_val], "tickcolor": "#8b9ab1"},
-               "bar": {"color": color}, "bgcolor": GR,
-               "bordercolor": "rgba(0,0,0,0)", "steps": []}))
-    fig.update_layout(paper_bgcolor=BG, font_color="#c9d1d9",
-                      height=195, margin=dict(l=12, r=12, t=28, b=6))
-    return fig
-
-
+# ── Data ──────────────────────────────────────────────────────────────────────
 @st.cache_data
-def load_data():
-    path = 'biometria_performance_startup.csv'
-    if not os.path.exists(path):
-        return None
-    df = pd.read_csv(path)
-    if 'Dia' not in df.columns:
-        df['Dia'] = range(1, len(df) + 1)
+def load():
+    if not os.path.exists('biometria_performance_startup.csv'): return None
+    df = pd.read_csv('biometria_performance_startup.csv')
+    if 'Dia' not in df.columns: df['Dia'] = range(1, len(df) + 1)
     return df
 
-
-df = load_data()
+df = load()
 if df is None:
-    st.error("CSV não encontrado. Executa primeiro: `python developmentday2.py`")
-    st.stop()
+    st.error("CSV not found. Run: python developmentday2.py"); st.stop()
 
-READ_COL = 'Readiness_Score' if 'Readiness_Score' in df.columns else 'Readiness'
+RC = 'Readiness_Score' if 'Readiness_Score' in df.columns else 'Readiness'
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("## 🏆 BME Performance AI")
-    st.markdown("---")
+    st.markdown('<p style="font-size:10px;font-weight:700;color:#2a2a2a;letter-spacing:.14em;'
+                'text-transform:uppercase;margin:8px 0 2px">BME PERFORMANCE</p>', unsafe_allow_html=True)
+    st.markdown('<p style="font-size:1.3rem;font-weight:900;color:#fff;margin:0 0 16px">AI Dashboard</p>',
+                unsafe_allow_html=True)
     if 'Atleta_ID' in df.columns:
-        sel_a = st.selectbox("Atleta", df['Atleta_ID'].unique())
-        df = df[df['Atleta_ID'] == sel_a].reset_index(drop=True)
-    day_max = int(df['Dia'].max())
-    dia = st.slider("📅 Dia de análise", 1, day_max, day_max)
-    st.markdown("---")
-    page = st.radio("Secção", ["📊 Relatório de Hoje", "🏃 Performance Física",
-                               "🧬 Recuperação & HRV", "🚨 Gestão de Risco",
-                               "📈 Visão Histórica"])
-    st.markdown("---")
-    row0 = df[df['Dia'] == dia].iloc[0] if dia in df['Dia'].values else df.iloc[-1]
-    acwr0 = float(row0.get('ACWR', 1.0))
-    if acwr0 > 1.5:
-        st.error(f"⚠️ ACWR {acwr0:.2f} — ZONA PERIGO")
-    elif acwr0 >= 0.8:
-        st.success(f"✅ ACWR {acwr0:.2f} — Zona óptima")
-    else:
-        st.warning(f"🟡 ACWR {acwr0:.2f} — Sub-treino")
-    if READ_COL in df.columns:
-        r0 = float(row0.get(READ_COL, 50))
-        st.caption(f"Readiness: **{r0:.0f}%** — {str(row0.get('Readiness_Tier','—'))}")
-    st.caption(f"Tipo de sessão: **{str(row0.get('Tipo_Sessao','—'))}**")
+        ath = st.selectbox("Athlete", df['Atleta_ID'].unique(), label_visibility="collapsed")
+        df = df[df['Atleta_ID'] == ath].reset_index(drop=True)
+    dm = int(df['Dia'].max())
+    dia = st.slider("Day", 1, dm, dm, label_visibility="collapsed")
+    st.markdown('<div style="height:1px;background:#181818;margin:12px 0"></div>', unsafe_allow_html=True)
+    page = st.radio("Nav", ["Today", "Physical", "Recovery", "Risk", "History"],
+                    label_visibility="collapsed")
+    st.markdown('<div style="height:1px;background:#181818;margin:12px 0"></div>', unsafe_allow_html=True)
+    r0  = df[df['Dia'] == dia].iloc[0] if dia in df['Dia'].values else df.iloc[-1]
+    rv  = float(r0.get(RC, 50)); av = float(r0.get('ACWR', 1.0))
+    tier0 = str(r0.get('Readiness_Tier', ''))
+    st.markdown(
+        f'<div style="margin-bottom:14px">'
+        f'<p style="font-size:9px;color:#2a2a2a;letter-spacing:.12em;text-transform:uppercase;margin:0 0 3px">Readiness</p>'
+        f'<p style="font-size:1.35rem;font-weight:900;color:{cg(rv)};margin:0">{rv:.0f}'
+        f'<span style="font-size:.8rem;font-weight:400;color:#333">%</span></p>'
+        f'<p style="font-size:9.5px;color:#333;margin:0">{tier0}</p></div>'
+        f'<div><p style="font-size:9px;color:#2a2a2a;letter-spacing:.12em;text-transform:uppercase;margin:0 0 3px">ACWR</p>'
+        f'<p style="font-size:1.35rem;font-weight:900;color:{ca(av)};margin:0">{av:.2f}</p>'
+        f'<p style="font-size:9.5px;color:#333;margin:0">{"Danger zone" if av>1.5 else "Optimal" if av>=0.8 else "Sub-training"}</p></div>',
+        unsafe_allow_html=True)
 
+# ── Row context ───────────────────────────────────────────────────────────────
 row = df[df['Dia'] == dia].iloc[0] if dia in df['Dia'].values else df.iloc[-1]
-dp = df[df['Dia'] <= dia]
+dp  = df[df['Dia'] <= dia]
 
+def g_(c, d=0.0):
+    try: v = row.get(c, d); return d if pd.isna(v) else float(v)
+    except: return d
 
-def g_(col, default=0.0):
-    try:
-        v = row.get(col, default)
-        return default if pd.isna(v) else float(v)
-    except Exception:
-        return default
+def gs(c, d="—"):
+    try: v = row.get(c, d); return d if (v is None or (isinstance(v, float) and pd.isna(v))) else str(v)
+    except: return d
 
+def mc(lbl, val, sub="", c=BL):
+    return (f'<div class="mc"><div style="position:absolute;top:0;left:0;right:0;height:2px;background:{c}"></div>'
+            f'<div class="ml">{lbl}</div><div class="mv" style="color:{c}">{val}</div>'
+            f'<div class="ms">{sub}</div></div>')
 
-def gs(col, default="—"):
-    try:
-        v = row.get(col, default)
-        return default if (v is None or (isinstance(v, float) and pd.isna(v))) else str(v)
-    except Exception:
-        return default
+def ic(text, c=BL, title="Coach Insight"):
+    return (f'<div class="ic" style="border-left:3px solid {c}">'
+            f'<div class="ict">{title}</div>{text}</div>')
 
+def ring(val, mx, col, lbl, sz=215):
+    p = min(max(val / mx, 0.001), 0.999)
+    fig = go.Figure(go.Pie(
+        values=[p, 1 - p], hole=0.72,
+        marker=dict(colors=[col, "#1c1c1c"], line=dict(width=0)),
+        sort=False, direction="clockwise", rotation=90,
+        textinfo="none", hoverinfo="none", showlegend=False))
+    fig.add_annotation(text=f"<b>{val:.0f}</b>", x=0.5, y=0.57, showarrow=False,
+                       font=dict(size=34, color=col, family="Inter"))
+    fig.add_annotation(text=lbl.upper(), x=0.5, y=0.34, showarrow=False,
+                       font=dict(size=9, color="#3a3a3a", family="Inter"))
+    fig.update_layout(paper_bgcolor=BG, margin=dict(l=0, r=0, t=0, b=0), height=sz)
+    return fig
 
-# ════════════════════════════════════════════════════════════════════════════
-if page == "📊 Relatório de Hoje":
-    readiness = g_(READ_COL, 50)
-    recovery  = g_('Recovery_Score', 50)
-    strain    = g_('Strain_Score', 0)
-    injury    = g_('Injury_Risk_Score', 0)
-    tipo      = gs('Tipo_Sessao')
-    tier      = gs('Readiness_Tier')
-    hrv       = g_('HRV_ms', 70)
-    hrv_base  = g_('HRV_Media_Base', hrv)
-    hrv_trend = gs('HRV_Trend', '➡️ Estável')
-    debt      = g_('Sleep_Debt_Acumulado_h', 0)
-    acwr      = g_('ACWR', 1.0)
-    assim     = g_('Assimetria_Percent', 0)
+def sf(fig, h=270):
+    fig.update_layout(
+        paper_bgcolor=BG, plot_bgcolor=BG,
+        font=dict(family="Inter", color=T2, size=11),
+        margin=dict(l=4, r=4, t=8, b=4), height=h,
+        xaxis=dict(gridcolor="#141414", zeroline=False, showline=False,
+                   tickfont=dict(size=9.5, color=T3)),
+        yaxis=dict(gridcolor="#141414", zeroline=False, showline=False,
+                   tickfont=dict(size=9.5, color=T3)),
+        legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(size=10, color=T2),
+                    orientation="h", y=1.08, x=0))
+    return fig
 
-    st.markdown(f"## Relatório · Dia {dia} &nbsp; {tier}")
-    st.caption(f"Atleta {gs('Atleta_ID','A001')} · análise gerada automaticamente")
+PC = {"displayModeBar": False}
 
-    c1, c2, c3, c4, c5 = st.columns(5)
-    with c1: kpi("Readiness", f"{readiness:.0f}%", "prontidão geral", _rc(readiness))
-    with c2: kpi("Recovery", f"{recovery:.0f}%", "recuperação interna", _rc(recovery))
-    with c3: kpi("Strain Score", f"{strain:.1f}/21", "carga cardiovascular", OR if strain > 14 else BL)
-    with c4: kpi("Injury Risk", f"{injury:.0f}/100", "risco composto", _ic(injury))
-    with c5: kpi("Tipo de Sessão", tipo, "classificação do dia", BL)
+def hdr(title, sub=""):
+    st.markdown(f'<p style="font-size:1.45rem;font-weight:900;color:#fff;margin:0 0 2px">{title}</p>'
+                f'<p style="font-size:11px;color:#3a3a3a;margin:0 0 18px">{sub}</p>', unsafe_allow_html=True)
 
-    st.markdown("---")
+# ══════════════════════════════════════════════════════════════════════════════
+if page == "Today":
+    readiness = g_(RC, 50);       recovery = g_('Recovery_Score', 50)
+    strain    = g_('Strain_Score', 0); hrv = g_('HRV_ms', 70)
+    hrv_b     = g_('HRV_Media_Base', hrv); debt = g_('Sleep_Debt_Acumulado_h', 0)
+    acwr      = g_('ACWR', 1.0);  assim = g_('Assimetria_Percent', 0)
+    sono      = g_('Horas_Sono', 7); sonop = g_('Sono_Profundo_h', 1.5)
+    tipo      = gs('Tipo_Sessao'); tier = gs('Readiness_Tier')
+    hrv_tr    = gs('HRV_Trend', 'Stable')
 
-    r_txt = "excelente" if readiness >= 67 else ("moderada" if readiness >= 33 else "baixa")
-    acwr_txt = ("⚠️ elevada — estás a acumular fadiga. Reduz volume 15-20% hoje." if acwr > 1.5
-                else "✅ no nível óptimo — podes treinar com intensidade máxima." if 0.8 <= acwr <= 1.3
-                else "🟡 baixa — bom momento para aumentar carga gradualmente.")
-    debt_txt = (f"Tens <strong>{debt:.1f}h</strong> de dívida de sono acumulada — prioriza descanso esta noite."
-                if debt > 2 else "O teu sono está controlado.")
-    assim_txt = (f"⚠️ Assimetria de <strong>{assim:.1f}%</strong> — acima do limiar crítico de 10%. Trabalho de equilíbrio recomendado."
-                 if assim > 10 else f"Assimetria dentro do normal ({assim:.1f}%).")
-    hrv_st = "adaptação positiva ✅" if hrv >= hrv_base else "stress fisiológico ⚠️"
+    st.markdown(
+        f'<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">'
+        f'<span style="font-size:1.5rem;font-weight:900">Day {dia}</span>'
+        f'<span class="tag" style="background:{cg(readiness)}1a;color:{cg(readiness)}">{tier}</span>'
+        f'<span class="tag" style="background:#181818;color:#444">{tipo}</span></div>'
+        f'<p style="font-size:11px;color:#333;margin:0 0 20px">Performance Report · Athlete {gs("Atleta_ID","A001")}</p>',
+        unsafe_allow_html=True)
 
-    coach("📋 Análise do Treinador",
-          f"A tua prontidão hoje é <strong>{r_txt}</strong> ({readiness:.0f}/100). "
-          f"A carga de treino está {acwr_txt} "
-          f"O HRV ({hrv:.0f} ms vs baseline {hrv_base:.0f} ms) indica <strong>{hrv_st}</strong>, "
-          f"com tendência <strong>{hrv_trend}</strong>. {debt_txt} {assim_txt}")
+    c1, c2, c3, c4 = st.columns([2.5, 2, 2, 2])
+    with c1:
+        st.plotly_chart(ring(readiness, 100, cg(readiness), "Readiness", 230),
+                        use_container_width=True, config=PC)
+    with c2:
+        st.plotly_chart(ring(recovery, 100, cg(recovery), "Recovery", 215),
+                        use_container_width=True, config=PC)
+    with c3:
+        st.markdown(mc("HRV", f"{hrv:.0f} ms", f"Baseline {hrv_b:.0f} · {hrv_tr}",
+                       G if hrv >= hrv_b else R), unsafe_allow_html=True)
+        st.markdown(mc("Sleep", f"{sono:.1f} h",
+                       f"{sonop:.1f}h deep · {sonop/max(sono,.1)*100:.0f}% eff.", BL),
+                    unsafe_allow_html=True)
+    with c4:
+        st.markdown(mc("Strain", f"{strain:.1f}", "of 21 · cardiovascular load",
+                       A if strain > 14 else BL), unsafe_allow_html=True)
+        st.markdown(mc("ACWR", f"{acwr:.2f}", "safe 0.8–1.3 · " +
+                       ("danger" if acwr > 1.5 else "optimal" if acwr >= 0.8 else "low"),
+                       ca(acwr)), unsafe_allow_html=True)
 
-    c1, c2, c3 = st.columns(3)
-    with c1: st.plotly_chart(gauge(readiness, 100, "Readiness Score", _rc(readiness), "%"),
-                              use_container_width=True, config={"displayModeBar": False})
-    with c2: st.plotly_chart(gauge(recovery, 100, "Recovery Score", _rc(recovery), "%"),
-                              use_container_width=True, config={"displayModeBar": False})
-    with c3: st.plotly_chart(gauge(strain, 21, "Strain Score", OR if strain > 14 else BL, "/21"),
-                              use_container_width=True, config={"displayModeBar": False})
+    rtext = "excellent" if readiness >= 67 else ("moderate" if readiness >= 33 else "low")
+    atext = ("⚠ high — reduce volume 15–20% today." if acwr > 1.5
+             else "✓ optimal — full intensity." if 0.8 <= acwr <= 1.3
+             else "↑ sub-training — increase load gradually.")
+    dtext = (f"<strong>{debt:.1f}h</strong> accumulated sleep debt — prioritize rest."
+             if debt > 2 else "Sleep debt under control.")
+    htext = "positive adaptation ✓" if hrv >= hrv_b else "physiological stress ⚠"
+    st.markdown(ic(
+        f"Readiness is <strong>{rtext}</strong> ({readiness:.0f}/100). ACWR is {atext} "
+        f"HRV <strong>{hrv:.0f} ms</strong> vs baseline <strong>{hrv_b:.0f} ms</strong> — {htext}. "
+        f"{dtext} Asymmetry {assim:.1f}%"
+        f"{' — above 10% critical threshold.' if assim > 10 else ' — within normal range.'}",
+        cg(readiness)), unsafe_allow_html=True)
 
-    st.markdown("#### Evolução da Prontidão")
-    if READ_COL in dp.columns:
+    st.markdown('<div class="sh">Readiness — 30-day trend</div>', unsafe_allow_html=True)
+    if RC in dp.columns:
         fig = go.Figure()
-        fig.add_hrect(y0=67, y1=105, fillcolor="rgba(0,200,83,0.08)", line_width=0,
-                      annotation_text="Zona óptima", annotation_position="top right")
-        fig.add_hrect(y0=0, y1=33, fillcolor="rgba(255,23,68,0.08)", line_width=0,
-                      annotation_text="Zona crítica", annotation_position="bottom right")
-        fig.add_trace(go.Scatter(x=dp['Dia'], y=dp[READ_COL], name="Readiness",
+        fig.add_hrect(y0=67, y1=105, fillcolor="rgba(0,230,118,.03)", line_width=0)
+        fig.add_hrect(y0=0,  y1=33,  fillcolor="rgba(255,61,87,.03)",  line_width=0)
+        fig.add_trace(go.Scatter(x=dp['Dia'], y=dp[RC], mode='lines',
                                  line=dict(color=BL, width=2.5),
-                                 fill='tozeroy', fillcolor='rgba(41,121,255,0.07)'))
-        st.plotly_chart(_style(fig, 260), use_container_width=True, config={"displayModeBar": False})
+                                 fill='tozeroy', fillcolor=FILL[BL], name="Readiness"))
+        st.plotly_chart(sf(fig, 230), use_container_width=True, config=PC)
 
     d_ia = gs('Diagnostico_IA'); d_sono = gs('Diagnostico_Sono')
     c1, c2 = st.columns(2)
     with c1:
-        (st.error if any(x in d_ia for x in ['PERIGO', 'CRÍTICO']) else
-         st.warning if 'AVISO' in d_ia else st.success)(f"🩺 {d_ia}")
+        bg = R if any(x in d_ia for x in ['PERIGO', 'CRÍTICO']) else A if 'AVISO' in d_ia else G
+        st.markdown(f'<div style="background:{bg}12;border:1px solid {bg}2e;border-radius:10px;'
+                    f'padding:11px 15px;font-size:12px;color:{bg};line-height:1.6">{d_ia}</div>',
+                    unsafe_allow_html=True)
     with c2:
-        (st.error if '🔴' in d_sono else st.warning if '🟡' in d_sono else st.success)(f"🌙 {d_sono}")
+        bg = R if '🔴' in d_sono else A if '🟡' in d_sono else G
+        st.markdown(f'<div style="background:{bg}12;border:1px solid {bg}2e;border-radius:10px;'
+                    f'padding:11px 15px;font-size:12px;color:{bg};line-height:1.6">{d_sono}</div>',
+                    unsafe_allow_html=True)
 
-# ════════════════════════════════════════════════════════════════════════════
-elif page == "🏃 Performance Física":
-    st.markdown("## Performance Física")
-    st.caption("Carga externa — distância, velocidade, potência metabólica, HMLD")
-
+# ══════════════════════════════════════════════════════════════════════════════
+elif page == "Physical":
+    hdr("Physical Performance", "External load — distance, speed, metabolic power, HMLD")
     c1, c2, c3, c4 = st.columns(4)
-    with c1: kpi("Distância", f"{g_('Distancia_km'):.1f} km", "percorrida na sessão", BL)
-    with c2: kpi("Vel. Máxima", f"{g_('Velocidade_Max_kmh'):.1f} km/h", "sprint mais rápido", PR)
-    with c3: kpi("HMLD", f"{g_('HMLD_m'):.0f} m", "distância >25.5 W/kg", OR)
-    with c4: kpi("Alta Intensidade", f"{g_('Minutos_High_Intensity'):.0f} min", "tempo acima do limiar", G)
+    with c1: st.markdown(mc("Distance",    f"{g_('Distancia_km'):.1f} km",      "session total",        BL), unsafe_allow_html=True)
+    with c2: st.markdown(mc("Max Speed",   f"{g_('Velocidade_Max_kmh'):.1f} km/h","fastest sprint",      PR), unsafe_allow_html=True)
+    with c3: st.markdown(mc("HMLD",        f"{g_('HMLD_m'):.0f} m",             "metres >25.5 W/kg",    A),  unsafe_allow_html=True)
+    with c4: st.markdown(mc("High Int.",   f"{g_('Minutos_High_Intensity'):.0f} min","above threshold",  G),  unsafe_allow_html=True)
 
-    coach("📖 O que é o HMLD?",
-          "O <strong>High Metabolic Load Distance</strong> (HMLD) mede os metros percorridos "
-          "acima de 25,5 W/kg — o limiar onde o corpo entra em esforço metabólico real. "
-          "É o indicador StatSports de exigência absoluta de sessão. Valores acima de 300m "
-          "indicam sessão de alta exigência. O teu HMLD hoje: "
-          f"<strong>{g_('HMLD_m'):.0f} m</strong>.")
-
-    st.markdown("---")
+    st.markdown('<div class="sh">Distance & HMLD · Max Speed</div>', unsafe_allow_html=True)
     c1, c2 = st.columns(2)
     with c1:
-        st.markdown("#### Distância (km) e HMLD")
         fig = go.Figure()
         if 'Distancia_km' in dp.columns:
-            fig.add_trace(go.Scatter(x=dp['Dia'], y=dp['Distancia_km'], name='Distância (km)',
-                                     line=dict(color=BL, width=2.5),
-                                     fill='tozeroy', fillcolor='rgba(41,121,255,0.07)'))
+            fig.add_trace(go.Scatter(x=dp['Dia'], y=dp['Distancia_km'], name="Distance (km)",
+                                     line=dict(color=BL, width=2.5), fill='tozeroy', fillcolor=FILL[BL]))
         if 'HMLD_m' in dp.columns:
-            fig.add_trace(go.Scatter(x=dp['Dia'], y=dp['HMLD_m'] / 1000, name='HMLD (km)',
-                                     line=dict(color=OR, width=2, dash='dot')))
-        st.plotly_chart(_style(fig), use_container_width=True, config={"displayModeBar": False})
-
+            fig.add_trace(go.Scatter(x=dp['Dia'], y=dp['HMLD_m'] / 1000, name="HMLD (km)",
+                                     line=dict(color=A, width=2, dash='dot'), fill='none'))
+        st.plotly_chart(sf(fig), use_container_width=True, config=PC)
     with c2:
-        st.markdown("#### Velocidade Máxima (km/h)")
         if 'Velocidade_Max_kmh' in dp.columns:
             clrs = [G if v > 34 else BL for v in dp['Velocidade_Max_kmh']]
             fig = go.Figure(go.Bar(x=dp['Dia'], y=dp['Velocidade_Max_kmh'],
-                                   marker_color=clrs, name='Vel. Máx.'))
-            fig.add_hline(y=34.0, line_dash="dash", line_color=G,
-                          annotation_text="🥇 Limiar de recorde")
-            st.plotly_chart(_style(fig), use_container_width=True, config={"displayModeBar": False})
+                                   marker_color=clrs, name="Max Speed"))
+            fig.add_hline(y=34, line_dash="dash", line_color=G, line_width=1)
+            st.plotly_chart(sf(fig), use_container_width=True, config=PC)
 
     if 'Metabolic_Power_Mean_Wkg' in dp.columns:
-        c3, c4 = st.columns(2)
-        with c3:
-            st.markdown("#### Potência Metabólica (W/kg)")
+        st.markdown('<div class="sh">Metabolic Power · Mechanical Load</div>', unsafe_allow_html=True)
+        c1, c2 = st.columns(2)
+        with c1:
             fig = go.Figure()
-            fig.add_trace(go.Scatter(x=dp['Dia'], y=dp['Metabolic_Power_Mean_Wkg'],
-                                     name='Média', line=dict(color=BL, width=2),
-                                     fill='tozeroy', fillcolor='rgba(41,121,255,0.07)'))
-            fig.add_trace(go.Scatter(x=dp['Dia'], y=dp['Metabolic_Power_Peak_Wkg'],
-                                     name='Pico', line=dict(color=OR, width=2)))
-            fig.add_hline(y=25.5, line_dash="dot", line_color=R, annotation_text="Limiar HMLD")
-            st.plotly_chart(_style(fig), use_container_width=True, config={"displayModeBar": False})
-        with c4:
-            st.markdown("#### Carga Mecânica (G) — suavizada")
+            fig.add_trace(go.Scatter(x=dp['Dia'], y=dp['Metabolic_Power_Mean_Wkg'], name="Mean",
+                                     line=dict(color=BL, width=2), fill='tozeroy', fillcolor=FILL[BL]))
+            fig.add_trace(go.Scatter(x=dp['Dia'], y=dp['Metabolic_Power_Peak_Wkg'], name="Peak",
+                                     line=dict(color=A, width=2), fill='none'))
+            fig.add_hline(y=25.5, line_dash="dot", line_color=R, line_width=1)
+            st.plotly_chart(sf(fig), use_container_width=True, config=PC)
+        with c2:
             fig = go.Figure()
             if 'Carga_Mecanica_G_Raw' in dp.columns:
-                fig.add_trace(go.Scatter(x=dp['Dia'], y=dp['Carga_Mecanica_G_Raw'],
-                                         name='Raw', line=dict(color="#8b9ab1", width=1, dash='dot'),
-                                         opacity=0.45))
+                fig.add_trace(go.Scatter(x=dp['Dia'], y=dp['Carga_Mecanica_G_Raw'], name="Raw",
+                                         line=dict(color=T3, width=1, dash='dot'), opacity=0.45))
             if 'Carga_Mecanica_G' in dp.columns:
-                fig.add_trace(go.Scatter(x=dp['Dia'], y=dp['Carga_Mecanica_G'],
-                                         name='Suavizada', line=dict(color=OR, width=2.5),
-                                         fill='tozeroy', fillcolor='rgba(255,109,0,0.07)'))
-            st.plotly_chart(_style(fig), use_container_width=True, config={"displayModeBar": False})
+                fig.add_trace(go.Scatter(x=dp['Dia'], y=dp['Carga_Mecanica_G'], name="Smoothed",
+                                         line=dict(color=A, width=2.5), fill='tozeroy', fillcolor=FILL[A]))
+            st.plotly_chart(sf(fig), use_container_width=True, config=PC)
 
-    coach("📖 Assimetria Muscular",
-          f"A assimetria hoje é <strong>{g_('Assimetria_Percent'):.1f}%</strong>. "
-          "Valores acima de 10% indicam desequilíbrio significativo entre membros — fator de risco de lesão. "
-          "O alvo clínico é manter abaixo de 8%. Monitorizar regularmente com testes isocinéticos.")
+    st.markdown(ic(
+        f"HMLD today: <strong>{g_('HMLD_m'):.0f} m</strong> — metres above 25.5 W/kg, where real metabolic effort begins. "
+        f"Values above 300m indicate high-demand session. "
+        f"Asymmetry: <strong>{g_('Assimetria_Percent'):.1f}%</strong>"
+        f"{'  ⚠ Above 10% critical threshold — balance work recommended.' if g_('Assimetria_Percent') > 10 else ' — within normal range.'}",
+        BL), unsafe_allow_html=True)
 
-# ════════════════════════════════════════════════════════════════════════════
-elif page == "🧬 Recuperação & HRV":
-    st.markdown("## Recuperação & Estado Interno")
-    st.caption("HRV, sono, dívida de sono, recovery score — carga interna")
+# ══════════════════════════════════════════════════════════════════════════════
+elif page == "Recovery":
+    hrv   = g_('HRV_ms', 70);       hrv_b = g_('HRV_Media_Base', hrv)
+    rec   = g_('Recovery_Score', 50); sono = g_('Horas_Sono', 7)
+    sonop = g_('Sono_Profundo_h', 1.5); debt = g_('Sleep_Debt_Acumulado_h', 0)
+    hrv_tr = gs('HRV_Trend', 'Stable')
 
-    hrv      = g_('HRV_ms', 70)
-    hrv_base = g_('HRV_Media_Base', hrv)
-    recovery = g_('Recovery_Score', 50)
-    sono_tot = g_('Horas_Sono', 7)
-    sono_pr  = g_('Sono_Profundo_h', 1.5)
-    debt     = g_('Sleep_Debt_Acumulado_h', 0)
-    hrv_tr   = gs('HRV_Trend', '➡️ Estável')
-
+    hdr("Recovery & Internal State", "HRV, sleep, sleep debt, recovery score")
     c1, c2, c3, c4 = st.columns(4)
-    with c1: kpi("HRV", f"{hrv:.0f} ms", f"baseline 30d: {hrv_base:.0f} ms", G if hrv >= hrv_base else R)
-    with c2: kpi("Recovery Score", f"{recovery:.0f}%", "índice 3-pillar (HRV+Sono+Carga)", _rc(recovery))
-    with c3: kpi("Sono", f"{sono_tot:.1f}h", f"{sono_pr:.1f}h profundo · {sono_pr/sono_tot*100:.0f}% efic.", BL)
-    with c4: kpi("Dívida Sono (7d)", f"{debt:+.1f}h", "acumulada na semana", R if debt > 3 else Y if debt > 1 else G)
+    with c1: st.markdown(mc("HRV",        f"{hrv:.0f} ms",  f"Baseline {hrv_b:.0f} · {hrv_tr}", G if hrv >= hrv_b else R), unsafe_allow_html=True)
+    with c2: st.markdown(mc("Recovery",   f"{rec:.0f}%",    "3-pillar: HRV+Sleep+Load",          cg(rec)), unsafe_allow_html=True)
+    with c3: st.markdown(mc("Sleep",      f"{sono:.1f} h",  f"{sonop:.1f}h deep · {sonop/max(sono,.1)*100:.0f}% eff.", BL), unsafe_allow_html=True)
+    with c4: st.markdown(mc("Sleep Debt", f"{debt:+.1f} h", "7-day accumulated", R if debt > 3 else A if debt > 1 else G), unsafe_allow_html=True)
 
-    coach("📖 Como é calculado o Recovery Score",
-          "O Recovery Score combina <strong>SNA</strong> (HRV + SpO₂) × 50% + "
-          "<strong>Sono</strong> (qualidade + quantidade) × 30% + "
-          "<strong>Carga</strong> (ACWR) × 20%. "
-          f"O teu HRV de <strong>{hrv:.0f} ms</strong> está "
-          f"{'<strong style=\"color:{G}\">acima</strong>' if hrv >= hrv_base else '<strong style=\"color:{R}\">abaixo</strong>'} "
-          f"da tua baseline pessoal de {hrv_base:.0f} ms — "
-          f"indicador de {'adaptação positiva ✅' if hrv >= hrv_base else 'stress fisiológico — prioriza descanso ⚠️'}.")
-
-    st.markdown("---")
+    st.markdown('<div class="sh">HRV vs Baseline · Sleep Quality</div>', unsafe_allow_html=True)
     c1, c2 = st.columns(2)
     with c1:
-        st.markdown(f"#### HRV (ms) — Tendência: {hrv_tr}")
         fig = go.Figure()
         if 'HRV_Media_Base' in dp.columns:
-            fig.add_trace(go.Scatter(x=dp['Dia'], y=dp['HRV_Media_Base'], name='Baseline 30d',
-                                     line=dict(color=Y, width=1.5, dash='dash'), opacity=0.8))
+            fig.add_trace(go.Scatter(x=dp['Dia'], y=dp['HRV_Media_Base'], name="Baseline 30d",
+                                     line=dict(color=A, width=1.5, dash='dash'), fill='none'))
         if 'HRV_ms' in dp.columns:
-            fig.add_trace(go.Scatter(x=dp['Dia'], y=dp['HRV_ms'], name='HRV diário',
-                                     line=dict(color=G, width=2.5),
-                                     fill='tozeroy', fillcolor='rgba(0,200,83,0.06)'))
-        st.plotly_chart(_style(fig, 300), use_container_width=True, config={"displayModeBar": False})
-
+            fig.add_trace(go.Scatter(x=dp['Dia'], y=dp['HRV_ms'], name="HRV",
+                                     line=dict(color=G, width=2.5), fill='tozeroy', fillcolor=FILL[G]))
+        st.plotly_chart(sf(fig), use_container_width=True, config=PC)
     with c2:
-        st.markdown("#### Sono: Total vs Profundo (h)")
         if 'Horas_Sono' in dp.columns:
             fig = go.Figure()
-            fig.add_trace(go.Bar(x=dp['Dia'], y=dp['Horas_Sono'], name='Total', marker_color=BL, opacity=0.55))
+            fig.add_trace(go.Bar(x=dp['Dia'], y=dp['Horas_Sono'], name="Total",
+                                 marker_color=BL, opacity=0.45))
             if 'Sono_Profundo_h' in dp.columns:
-                fig.add_trace(go.Bar(x=dp['Dia'], y=dp['Sono_Profundo_h'], name='Profundo', marker_color=PR))
-            fig.add_hline(y=8, line_dash="dot", line_color=G, annotation_text="Alvo: 8h")
+                fig.add_trace(go.Bar(x=dp['Dia'], y=dp['Sono_Profundo_h'], name="Deep",
+                                     marker_color=PR))
+            fig.add_hline(y=8, line_dash="dot", line_color=G, line_width=1)
             fig.update_layout(barmode='overlay')
-            st.plotly_chart(_style(fig, 300), use_container_width=True, config={"displayModeBar": False})
+            st.plotly_chart(sf(fig), use_container_width=True, config=PC)
 
-    c3, c4 = st.columns(2)
-    with c3:
-        st.markdown("#### Recovery Score ao Longo do Tempo")
-        if 'Recovery_Score' in dp.columns:
-            clrs = [_rc(v) for v in dp['Recovery_Score']]
-            fig = go.Figure(go.Bar(x=dp['Dia'], y=dp['Recovery_Score'], marker_color=clrs))
-            fig.add_hrect(y0=67, y1=105, fillcolor="rgba(0,200,83,0.07)", line_width=0)
-            fig.add_hrect(y0=0, y1=33, fillcolor="rgba(255,23,68,0.07)", line_width=0)
-            st.plotly_chart(_style(fig, 270), use_container_width=True, config={"displayModeBar": False})
-
-    with c4:
-        st.markdown("#### Dívida de Sono Acumulada (7d)")
-        if 'Sleep_Debt_Acumulado_h' in dp.columns:
-            clrs = [R if v > 3 else Y if v > 0 else G for v in dp['Sleep_Debt_Acumulado_h']]
-            fig = go.Figure(go.Bar(x=dp['Dia'], y=dp['Sleep_Debt_Acumulado_h'], marker_color=clrs))
-            fig.add_hline(y=0, line_color="#8b9ab1", line_width=1)
-            fig.add_hline(y=3, line_dash="dot", line_color=R, annotation_text="Zona de risco")
-            st.plotly_chart(_style(fig, 270), use_container_width=True, config={"displayModeBar": False})
-
-    coach("📖 Como melhorar o sono profundo",
-          f"Tiveste <strong>{sono_pr:.1f}h</strong> de sono profundo ({sono_pr/sono_tot*100:.0f}% do total). "
-          "O ideal são 20–25%. Para aumentar: evita écrans 1h antes de dormir, "
-          "mantém temperatura abaixo de 19°C, evita cafeína após as 14h. "
-          "O sono profundo é quando o corpo liberta hormona de crescimento e repara tecidos musculares.")
-
-# ════════════════════════════════════════════════════════════════════════════
-elif page == "🚨 Gestão de Risco":
-    st.markdown("## Gestão de Risco & IA Preditiva")
-    st.caption("ACWR, injury risk score, fadiga e classificação de sessão")
-
-    acwr   = g_('ACWR', 1.0)
-    injury = g_('Injury_Risk_Score', 0)
-    z_c    = g_('Z_Score_Carga', 0)
-    fadiga = g_('Indice_Fadiga', 0)
-    assim  = g_('Assimetria_Percent', 0)
-
-    c1, c2, c3, c4 = st.columns(4)
-    with c1: kpi("ACWR", f"{acwr:.2f}", "zona óptima: 0.8 – 1.3", _c(acwr))
-    with c2: kpi("Injury Risk", f"{injury:.0f}/100", "risco composto de lesão", _ic(injury))
-    with c3: kpi("Z-Score Carga", f"{z_c:+.2f} σ", "desvio da carga habitual", R if abs(z_c) > 2 else BL)
-    with c4: kpi("Índice Fadiga", f"{fadiga:.0f}/100", "impacto acumulado", R if fadiga > 80 else Y if fadiga > 50 else G)
-
-    coach("📖 O que é o ACWR e porque é o indicador mais importante",
-          "O <strong>Acute:Chronic Workload Ratio</strong> compara a tua carga das últimas 7 dias "
-          "com a média dos últimos 28 dias. É o indicador mais validado pela ciência para prever lesões. "
-          f"Hoje o teu ACWR é <strong>{acwr:.2f}</strong>. "
-          f"{'⚠️ ZONA PERIGOSA: carga aguda muito acima da crónica. Risco de lesão real. Reduz volume imediatamente.' if acwr > 1.5 else '✅ Zona óptima — podes treinar com intensidade máxima.' if 0.8 <= acwr <= 1.3 else '🟡 Sub-treino — bom momento para aumentar carga gradualmente.'}")
-
-    st.markdown("---")
-    c1, c2 = st.columns([2, 1])
+    st.markdown('<div class="sh">Recovery Score · Sleep Debt</div>', unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
     with c1:
-        st.markdown("#### ACWR com Zonas de Risco")
+        if 'Recovery_Score' in dp.columns:
+            clrs = [cg(v) for v in dp['Recovery_Score']]
+            fig = go.Figure(go.Bar(x=dp['Dia'], y=dp['Recovery_Score'], marker_color=clrs))
+            fig.add_hrect(y0=67, y1=105, fillcolor="rgba(0,230,118,.03)", line_width=0)
+            fig.add_hrect(y0=0, y1=33, fillcolor="rgba(255,61,87,.03)", line_width=0)
+            st.plotly_chart(sf(fig, 250), use_container_width=True, config=PC)
+    with c2:
+        if 'Sleep_Debt_Acumulado_h' in dp.columns:
+            clrs = [R if v > 3 else A if v > 0 else G for v in dp['Sleep_Debt_Acumulado_h']]
+            fig = go.Figure(go.Bar(x=dp['Dia'], y=dp['Sleep_Debt_Acumulado_h'], marker_color=clrs))
+            fig.add_hline(y=3, line_dash="dot", line_color=R, line_width=1)
+            st.plotly_chart(sf(fig, 250), use_container_width=True, config=PC)
+
+    st.markdown(ic(
+        f"Recovery score <strong>{rec:.0f}%</strong> — SNA×50% + Sleep×30% + Load×20%. "
+        f"HRV <strong>{hrv:.0f} ms</strong> vs baseline <strong>{hrv_b:.0f} ms</strong> — "
+        f"{'positive adaptation ✓' if hrv >= hrv_b else 'physiological stress ⚠'}. "
+        f"Deep sleep: <strong>{sonop:.1f}h</strong> ({sonop/max(sono,.1)*100:.0f}% of total, target 20–25%). "
+        f"{'Sleep debt elevated — prioritize rest.' if debt > 2 else 'Sleep debt under control.'}",
+        cg(rec)), unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════════════════════════════════════
+elif page == "Risk":
+    acwr  = g_('ACWR', 1.0);     inj  = g_('Injury_Risk_Score', 0)
+    zc    = g_('Z_Score_Carga', 0); fad = g_('Indice_Fadiga', 0)
+    assim = g_('Assimetria_Percent', 0)
+
+    hdr("Risk Management", "ACWR, injury risk, fatigue index, asymmetry")
+    c1, c2, c3, c4 = st.columns(4)
+    with c1: st.markdown(mc("ACWR",          f"{acwr:.2f}",   "safe zone 0.8–1.3",       ca(acwr)), unsafe_allow_html=True)
+    with c2: st.markdown(mc("Injury Risk",   f"{inj:.0f}",    "composite score /100",    ci(inj)),  unsafe_allow_html=True)
+    with c3: st.markdown(mc("Z-Score Load",  f"{zc:+.2f} σ", "deviation from baseline", R if abs(zc) > 2 else BL), unsafe_allow_html=True)
+    with c4: st.markdown(mc("Fatigue Index", f"{fad:.0f}",    "accumulated impact /100", R if fad > 80 else A if fad > 50 else G), unsafe_allow_html=True)
+
+    st.markdown('<div class="sh">ACWR with Risk Zones</div>', unsafe_allow_html=True)
+    c1, c2 = st.columns([3, 1])
+    with c1:
         if 'ACWR' in dp.columns:
             fig = go.Figure()
-            fig.add_hrect(y0=0.8, y1=1.3, fillcolor="rgba(0,200,83,0.10)", line_width=0,
-                          annotation_text="Zona óptima", annotation_position="top left")
-            fig.add_hrect(y0=1.3, y1=1.5, fillcolor="rgba(255,214,0,0.10)", line_width=0,
-                          annotation_text="Atenção", annotation_position="top right")
-            fig.add_hrect(y0=1.5, y1=3.0, fillcolor="rgba(255,23,68,0.10)", line_width=0,
-                          annotation_text="Perigo", annotation_position="top right")
-            clrs = [_c(v) for v in dp['ACWR']]
+            fig.add_hrect(y0=0.8, y1=1.3, fillcolor="rgba(0,230,118,.05)",  line_width=0)
+            fig.add_hrect(y0=1.3, y1=1.5, fillcolor="rgba(255,179,0,.05)",  line_width=0)
+            fig.add_hrect(y0=1.5, y1=3.0, fillcolor="rgba(255,61,87,.05)",  line_width=0)
+            clrs = [ca(v) for v in dp['ACWR']]
             fig.add_trace(go.Scatter(x=dp['Dia'], y=dp['ACWR'], mode='lines+markers',
-                                     marker=dict(color=clrs, size=5),
-                                     line=dict(color=BL, width=2.5), name='ACWR'))
-            if 'Carga_Aguda' in dp.columns:
+                                     marker=dict(color=clrs, size=5, line=dict(width=0)),
+                                     line=dict(color=BL, width=2.5), name="ACWR"))
+            if all(c in dp.columns for c in ['Carga_Aguda', 'Carga_Cronica']):
                 fig.add_trace(go.Scatter(x=dp['Dia'], y=dp['Carga_Aguda'],
-                                         name='Carga Aguda 7d', line=dict(color=OR, width=1.5, dash='dot'),
+                                         name='Acute 7d', line=dict(color=A, width=1.5, dash='dot'),
                                          yaxis='y2'))
                 fig.add_trace(go.Scatter(x=dp['Dia'], y=dp['Carga_Cronica'],
-                                         name='Carga Crónica 28d', line=dict(color=PR, width=1.5, dash='dot'),
+                                         name='Chronic 28d', line=dict(color=PR, width=1.5, dash='dot'),
                                          yaxis='y2'))
-                fig.update_layout(
-                    yaxis2=dict(overlaying='y', side='right', showgrid=False,
-                                title='Carga G', color='#8b9ab1'))
-            st.plotly_chart(_style(fig, 340), use_container_width=True, config={"displayModeBar": False})
-
+                fig.update_layout(yaxis2=dict(overlaying='y', side='right', showgrid=False,
+                                              tickfont=dict(size=9, color=T3)))
+            st.plotly_chart(sf(fig, 310), use_container_width=True, config=PC)
     with c2:
-        st.markdown("#### Injury Risk Score")
         fig = go.Figure(go.Indicator(
-            mode="gauge+number",
-            value=injury,
-            title={"text": "Risco de Lesão", "font": {"size": 13, "color": "#8b9ab1"}},
-            gauge={"axis": {"range": [0, 100]}, "bar": {"color": _ic(injury)},
-                   "steps": [{"range": [0, 35], "color": "rgba(0,200,83,0.13)"},
-                              {"range": [35, 60], "color": "rgba(255,214,0,0.13)"},
-                              {"range": [60, 100], "color": "rgba(255,23,68,0.13)"}],
-                   "threshold": {"line": {"color": R, "width": 3},
+            mode="gauge+number", value=inj,
+            number={"font": {"size": 28, "color": ci(inj), "family": "Inter"}},
+            gauge={"axis": {"range": [0, 100], "visible": False},
+                   "bar": {"color": ci(inj), "thickness": 0.14},
+                   "bgcolor": "#1a1a1a", "bordercolor": "rgba(0,0,0,0)",
+                   "steps": [{"range": [0, 35],  "color": "rgba(0,230,118,.07)"},
+                              {"range": [35, 60], "color": "rgba(255,179,0,.07)"},
+                              {"range": [60, 100],"color": "rgba(255,61,87,.07)"}],
+                   "threshold": {"line": {"color": R, "width": 2},
                                  "thickness": 0.75, "value": 60}}))
-        fig.update_layout(paper_bgcolor=BG, font_color="#c9d1d9",
-                          height=295, margin=dict(l=12, r=12, t=32, b=8))
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-
-    c3, c4 = st.columns(2)
-    with c3:
-        st.markdown("#### Injury Risk ao Longo do Tempo")
-        if 'Injury_Risk_Score' in dp.columns:
-            clrs = [_ic(v) for v in dp['Injury_Risk_Score']]
-            fig = go.Figure(go.Bar(x=dp['Dia'], y=dp['Injury_Risk_Score'], marker_color=clrs))
-            fig.add_hline(y=60, line_dash="dot", line_color=R, annotation_text="Zona de alerta")
-            st.plotly_chart(_style(fig, 260), use_container_width=True, config={"displayModeBar": False})
-
-    with c4:
-        st.markdown("#### Assimetria Muscular (%)")
-        if 'Assimetria_Percent' in dp.columns:
-            clrs = [R if v > 10 else Y if v > 7 else G for v in dp['Assimetria_Percent']]
-            fig = go.Figure(go.Bar(x=dp['Dia'], y=dp['Assimetria_Percent'], marker_color=clrs))
-            fig.add_hline(y=10, line_dash="dot", line_color=R, annotation_text="Limite crítico")
-            fig.add_hline(y=7, line_dash="dot", line_color=Y, annotation_text="Atenção")
-            st.plotly_chart(_style(fig, 260), use_container_width=True, config={"displayModeBar": False})
-
-    if 'Tipo_Sessao' in dp.columns:
-        st.markdown("#### Distribuição de Tipos de Sessão")
-        cnt = dp['Tipo_Sessao'].value_counts().reset_index()
-        cnt.columns = ['Tipo', 'Dias']
-        cmap = {'Alta Performance': G, 'Desenvolvimento': BL,
-                'Base': PR, 'Recuperação': Y, '⚠️ Sobrecarga': R}
-        fig = px.bar(cnt, x='Tipo', y='Dias', color='Tipo',
-                     color_discrete_map=cmap, text='Dias')
-        fig.update_layout(showlegend=False)
-        st.plotly_chart(_style(fig, 260), use_container_width=True, config={"displayModeBar": False})
-
-    coach("📖 O Injury Risk Score — os 4 fatores",
-          "O score combina: <strong>ACWR</strong> (35%) + <strong>Assimetria muscular</strong> (25%) + "
-          "<strong>Índice de fadiga</strong> (25%) + <strong>Temperatura corporal</strong> (15%). "
-          f"Hoje: <strong>{injury:.0f}/100</strong>. "
-          f"{'🔴 Recomendo sessão de recuperação ativa ou descanso total.' if injury > 60 else '🟡 Mantém atenção. Aquece bem e monitoriza a assimetria.' if injury > 35 else '🟢 Baixo risco — bom estado para treinar com intensidade.'}")
-
-# ════════════════════════════════════════════════════════════════════════════
-elif page == "📈 Visão Histórica":
-    st.markdown("## Visão Histórica Completa")
-    st.caption(f"Todos os indicadores · {len(dp)} dias de dados analisados")
-
-    avg_r = dp[READ_COL].mean() if READ_COL in dp.columns else 0
-    avg_hrv = dp['HRV_ms'].mean() if 'HRV_ms' in dp.columns else 0
-    avg_d = dp['Distancia_km'].mean() if 'Distancia_km' in dp.columns else 0
-    max_v = dp['Velocidade_Max_kmh'].max() if 'Velocidade_Max_kmh' in dp.columns else 0
-    avg_rec = dp['Recovery_Score'].mean() if 'Recovery_Score' in dp.columns else 0
-
-    c1, c2, c3, c4, c5 = st.columns(5)
-    with c1: kpi("Readiness Médio", f"{avg_r:.0f}%", f"{len(dp)} dias", _rc(avg_r))
-    with c2: kpi("Recovery Médio", f"{avg_rec:.0f}%", "índice 3-pillar", _rc(avg_rec))
-    with c3: kpi("HRV Médio", f"{avg_hrv:.0f} ms", "variabilidade cardíaca", G)
-    with c4: kpi("Distância Média", f"{avg_d:.1f} km", "por sessão", BL)
-    with c5: kpi("Sprint Máximo", f"{max_v:.1f} km/h", "recorde do período", PR)
-
-    st.markdown("---")
-    st.markdown("#### Dashboard Multi-Métrica")
-    fig = go.Figure()
-    pairs = [(READ_COL, 'Readiness', BL), ('Recovery_Score', 'Recovery', G),
-             ('Injury_Risk_Score', 'Injury Risk', R)]
-    for col, name, color in pairs:
-        if col in dp.columns:
-            fig.add_trace(go.Scatter(x=dp['Dia'], y=dp[col], name=name,
-                                     line=dict(color=color, width=2)))
-    if 'Strain_Score' in dp.columns:
-        fig.add_trace(go.Scatter(x=dp['Dia'], y=dp['Strain_Score'] * (100 / 21),
-                                  name='Strain (norm.)', line=dict(color=OR, width=2, dash='dot')))
-    fig.update_layout(yaxis_range=[0, 105])
-    st.plotly_chart(_style(fig, 360), use_container_width=True, config={"displayModeBar": False})
+        fig.add_annotation(text="Injury Risk", x=0.5, y=-0.05, showarrow=False,
+                           font=dict(size=9.5, color=T3, family="Inter"))
+        fig.update_layout(paper_bgcolor=BG, font=dict(family="Inter", color=T2),
+                          height=295, margin=dict(l=12, r=12, t=28, b=16))
+        st.plotly_chart(fig, use_container_width=True, config=PC)
 
     c1, c2 = st.columns(2)
     with c1:
-        st.markdown("#### Carga Aguda vs Crónica")
+        st.markdown('<div class="sh">Injury Risk History</div>', unsafe_allow_html=True)
+        if 'Injury_Risk_Score' in dp.columns:
+            clrs = [ci(v) for v in dp['Injury_Risk_Score']]
+            fig = go.Figure(go.Bar(x=dp['Dia'], y=dp['Injury_Risk_Score'], marker_color=clrs))
+            fig.add_hline(y=60, line_dash="dot", line_color=R, line_width=1)
+            st.plotly_chart(sf(fig, 250), use_container_width=True, config=PC)
+    with c2:
+        st.markdown('<div class="sh">Muscular Asymmetry</div>', unsafe_allow_html=True)
+        if 'Assimetria_Percent' in dp.columns:
+            clrs = [R if v > 10 else A if v > 7 else G for v in dp['Assimetria_Percent']]
+            fig = go.Figure(go.Bar(x=dp['Dia'], y=dp['Assimetria_Percent'], marker_color=clrs))
+            fig.add_hline(y=10, line_dash="dot", line_color=R, line_width=1)
+            fig.add_hline(y=7,  line_dash="dot", line_color=A, line_width=1)
+            st.plotly_chart(sf(fig, 250), use_container_width=True, config=PC)
+
+    st.markdown(ic(
+        f"ACWR <strong>{acwr:.2f}</strong> — "
+        f"{'⚠ Danger zone. Reduce volume immediately.' if acwr > 1.5 else '✓ Optimal zone. Full intensity.' if 0.8 <= acwr <= 1.3 else '↑ Sub-training. Increase gradually.'} "
+        f"Injury risk: <strong>{inj:.0f}/100</strong> — ACWR (35%) + Asymmetry (25%) + Fatigue (25%) + Temp (15%). "
+        f"{'🔴 Rest or active recovery recommended.' if inj > 60 else '🟡 Monitor closely.' if inj > 35 else '🟢 Low risk — good to train.'}",
+        ci(inj)), unsafe_allow_html=True)
+
+    if 'Tipo_Sessao' in dp.columns:
+        st.markdown('<div class="sh">Session Type Distribution</div>', unsafe_allow_html=True)
+        cnt = dp['Tipo_Sessao'].value_counts().reset_index(); cnt.columns = ['Type', 'Days']
+        cmap = {'Alta Performance': G, 'Desenvolvimento': BL, 'Base': PR,
+                'Recuperação': A, '⚠️ Sobrecarga': R}
+        fig = px.bar(cnt, x='Type', y='Days', color='Type', color_discrete_map=cmap, text='Days')
+        fig.update_layout(showlegend=False)
+        st.plotly_chart(sf(fig, 240), use_container_width=True, config=PC)
+
+# ══════════════════════════════════════════════════════════════════════════════
+elif page == "History":
+    ar   = dp[RC].mean()                    if RC in dp.columns else 0
+    ah   = dp['HRV_ms'].mean()              if 'HRV_ms' in dp.columns else 0
+    ad   = dp['Distancia_km'].mean()        if 'Distancia_km' in dp.columns else 0
+    mv   = dp['Velocidade_Max_kmh'].max()   if 'Velocidade_Max_kmh' in dp.columns else 0
+    arec = dp['Recovery_Score'].mean()      if 'Recovery_Score' in dp.columns else 0
+
+    hdr("Full History", f"All indicators · {len(dp)} days analysed")
+    c1, c2, c3, c4, c5 = st.columns(5)
+    with c1: st.markdown(mc("Avg Readiness", f"{ar:.0f}%",   f"{len(dp)} days",    cg(ar)),   unsafe_allow_html=True)
+    with c2: st.markdown(mc("Avg Recovery",  f"{arec:.0f}%", "3-pillar index",     cg(arec)), unsafe_allow_html=True)
+    with c3: st.markdown(mc("Avg HRV",       f"{ah:.0f} ms", "cardiac variability",G),         unsafe_allow_html=True)
+    with c4: st.markdown(mc("Avg Distance",  f"{ad:.1f} km", "per session",        BL),        unsafe_allow_html=True)
+    with c5: st.markdown(mc("Top Sprint",    f"{mv:.1f} km/h","period record",     PR),        unsafe_allow_html=True)
+
+    st.markdown('<div class="sh">Multi-metric overlay</div>', unsafe_allow_html=True)
+    fig = go.Figure()
+    for col, name, color in [(RC, 'Readiness', BL), ('Recovery_Score', 'Recovery', G),
+                              ('Injury_Risk_Score', 'Injury Risk', R)]:
+        if col in dp.columns:
+            fig.add_trace(go.Scatter(x=dp['Dia'], y=dp[col], name=name,
+                                     line=dict(color=color, width=2), fill='none'))
+    if 'Strain_Score' in dp.columns:
+        fig.add_trace(go.Scatter(x=dp['Dia'], y=dp['Strain_Score'] * (100 / 21),
+                                  name="Strain (norm.)", line=dict(color=A, width=1.5, dash='dot'),
+                                  fill='none'))
+    fig.update_layout(yaxis_range=[0, 105])
+    st.plotly_chart(sf(fig, 320), use_container_width=True, config=PC)
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown('<div class="sh">Acute vs Chronic Load</div>', unsafe_allow_html=True)
         if all(c in dp.columns for c in ['Carga_Aguda', 'Carga_Cronica']):
             fig = go.Figure()
-            fig.add_trace(go.Scatter(x=dp['Dia'], y=dp['Carga_Aguda'],
-                                     name='Aguda 7d', line=dict(color=OR, width=2)))
-            fig.add_trace(go.Scatter(x=dp['Dia'], y=dp['Carga_Cronica'],
-                                     name='Crónica 28d', line=dict(color=BL, width=2)))
-            st.plotly_chart(_style(fig, 270), use_container_width=True, config={"displayModeBar": False})
-
+            fig.add_trace(go.Scatter(x=dp['Dia'], y=dp['Carga_Aguda'], name="Acute 7d",
+                                     line=dict(color=A, width=2), fill='tozeroy', fillcolor=FILL[A]))
+            fig.add_trace(go.Scatter(x=dp['Dia'], y=dp['Carga_Cronica'], name="Chronic 28d",
+                                     line=dict(color=BL, width=2), fill='none'))
+            st.plotly_chart(sf(fig, 260), use_container_width=True, config=PC)
     with c2:
-        st.markdown("#### Evolução da Resistência (média 7d)")
+        st.markdown('<div class="sh">Endurance (7-day rolling avg)</div>', unsafe_allow_html=True)
         if 'Resistencia' in dp.columns:
             roll = dp['Resistencia'].rolling(7, min_periods=1).mean()
             fig = go.Figure()
-            fig.add_trace(go.Scatter(x=dp['Dia'], y=dp['Resistencia'], name='Diária',
-                                     line=dict(color=BL, width=1.2), opacity=0.4))
-            fig.add_trace(go.Scatter(x=dp['Dia'], y=roll, name='Média 7d',
-                                     line=dict(color=G, width=2.5)))
-            st.plotly_chart(_style(fig, 270), use_container_width=True, config={"displayModeBar": False})
+            fig.add_trace(go.Scatter(x=dp['Dia'], y=dp['Resistencia'], name="Daily",
+                                     line=dict(color=T3, width=1.2), fill='none', opacity=0.5))
+            fig.add_trace(go.Scatter(x=dp['Dia'], y=roll, name="7d avg",
+                                     line=dict(color=G, width=2.5), fill='tozeroy', fillcolor=FILL[G]))
+            st.plotly_chart(sf(fig, 260), use_container_width=True, config=PC)
 
-    with st.expander("📋 Tabela de dados completa"):
-        show = [c for c in ['Dia', READ_COL, 'Recovery_Score', 'Strain_Score',
-                             'Injury_Risk_Score', 'ACWR', 'HRV_ms', 'Horas_Sono',
-                             'Distancia_km', 'Velocidade_Max_kmh',
+    with st.expander("Full data table"):
+        show = [c for c in ['Dia', RC, 'Recovery_Score', 'Strain_Score', 'Injury_Risk_Score',
+                             'ACWR', 'HRV_ms', 'Horas_Sono', 'Distancia_km', 'Velocidade_Max_kmh',
                              'Tipo_Sessao', 'HRV_Trend', 'Readiness_Tier'] if c in dp.columns]
-        num_cols = [c for c in show if c not in ['Tipo_Sessao', 'HRV_Trend', 'Readiness_Tier', 'Dia']]
-        st.dataframe(dp[show].set_index('Dia').style.format(
-            {c: "{:.1f}" for c in num_cols}, na_rep="—"), use_container_width=True)
+        num  = [c for c in show if c not in ['Tipo_Sessao', 'HRV_Trend', 'Readiness_Tier', 'Dia']]
+        st.dataframe(dp[show].set_index('Dia').style.format({c: "{:.1f}" for c in num}, na_rep="—"),
+                     use_container_width=True)
